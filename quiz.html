@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bible Quiz</title>
+<style>
+  /* ── Background picture ──────────────────────────────────────────────
+     Change the file name below to test another picture (keep it in this folder),
+     or open the page as  quiz.html?bg=some-other-image.jpg  without editing anything. */
+  :root { --bg-image:url("bg-image_1.PNG");
+          --bg:#14213d; --card:rgba(17,27,54,.76); --accent:#fca311; --ok:#2ecc71; --bad:#e74c3c; --text:#f4f1ea; }
+  * { box-sizing:border-box; }
+  html { background:#0b0d16; }
+  body { margin:0; min-height:100vh; min-height:100dvh; padding:16px;
+         display:flex; flex-direction:column; align-items:center;
+         color:var(--text); font-family:system-ui,Segoe UI,Arial,sans-serif; }
+  body::before { content:""; flex:1 0 42vh; }            /* keeps the upper part of the picture clear */
+  #scene { position:fixed; inset:0; z-index:0; pointer-events:none;
+           background:var(--bg-image) 50% 8% / cover no-repeat, #1a1408; }
+  #scene::after { content:""; position:absolute; inset:0;
+                  background:linear-gradient(to bottom, rgba(6,8,16,0) 36%, rgba(6,8,16,.45) 64%, rgba(6,8,16,.82) 100%),
+                             radial-gradient(ellipse 85% 75% at 50% 30%, rgba(6,8,16,0) 55%, rgba(6,8,16,.35) 100%); }
+  .card { position:relative; z-index:1; width:100%; max-width:640px; background:var(--card);
+          -webkit-backdrop-filter:blur(10px) saturate(1.15); backdrop-filter:blur(10px) saturate(1.15);
+          border-radius:16px; padding:24px 28px; box-shadow:0 18px 50px rgba(0,0,0,.55);
+          border:1px solid rgba(252,163,17,.42); }
+  h1 { margin-top:0; color:var(--accent); text-shadow:0 2px 12px rgba(0,0,0,.35); }
+  .meta { display:flex; justify-content:space-between; font-size:.9rem; opacity:.85; margin-bottom:8px; }
+  .bar { height:6px; background:rgba(8,14,32,.8); border-radius:3px; overflow:hidden; margin-bottom:20px; }
+  .bar > div { height:100%; background:var(--accent); transition:width .3s; }
+  .timer > div { background:var(--ok); transition:width 1s linear; }
+  .q { font-size:1.25rem; margin:0 0 16px; line-height:1.4; }
+  #options { display:grid; gap:10px; }
+  @media (min-width:640px) { #options { grid-template-columns:1fr 1fr; } }
+  .opt { display:block; width:100%; text-align:left; margin:0; padding:12px 16px; font:inherit; font-size:1rem;
+         color:var(--text); background:rgba(42,61,107,.88); border:2px solid transparent; border-radius:10px; cursor:pointer; }
+  .opt:hover:enabled { border-color:var(--accent); }
+  .opt.correct { background:var(--ok); color:#07210f; }
+  .opt.wrong { background:var(--bad); }
+  .opt:disabled { cursor:default; }
+  button.main { margin-top:16px; padding:12px 24px; font:inherit; font-size:1rem; font-weight:600; border:0; border-radius:10px;
+                background:var(--accent); color:#14213d; cursor:pointer; }
+  .hidden { display:none; }
+  .score { font-size:3rem; color:var(--accent); margin:10px 0; }
+  @media (max-width:480px) { .card { padding:20px 18px; } .q { font-size:1.12rem; } }
+</style>
+</head>
+<body>
+
+<div id="scene" aria-hidden="true"></div>
+
+<div class="card">
+  <div id="start">
+    <h1>📖 Bible Quiz</h1>
+    <p>10 random questions. 15 seconds each. How many can you get right?</p>
+    <p>Best score: <strong id="best">–</strong></p>
+    <button class="main" id="startBtn">Start Quiz</button>
+  </div>
+
+  <div id="game" class="hidden">
+    <div class="meta"><span id="progress"></span><span id="score"></span></div>
+    <div class="bar timer"><div id="timerBar" style="width:100%"></div></div>
+    <p class="q" id="question"></p>
+    <div id="options"></div>
+    <button class="main hidden" id="nextBtn">Next →</button>
+  </div>
+
+  <div id="end" class="hidden">
+    <h1>Quiz complete!</h1>
+    <div class="score" id="finalScore"></div>
+    <p id="verdict"></p>
+    <button class="main" id="againBtn">Play Again</button>
+  </div>
+</div>
+
+<script>
+// Test another background without editing this file: open  quiz.html?bg=other-image.jpg
+const bgParam = new URLSearchParams(location.search).get("bg");
+if (bgParam) document.documentElement.style.setProperty("--bg-image", `url("${encodeURI(bgParam)}")`);
+
+// Total questions in the bank: 100 (update this number when adding or removing questions)
+// Each entry: [question, [options], index of correct option]
+const QUESTIONS = [
+  ["Who built the ark?", ["Moses","Noah","Abraham","David"], 1],
+  ["What is the first book of the Bible?", ["Exodus","Genesis","Psalms","Matthew"], 1],
+  ["How many days did God spend creating the world before resting on the next?", ["Five","Six","Seven","Ten"], 1],
+  ["Who was swallowed by a great fish?", ["Jonah","Elijah","Daniel","Peter"], 0],
+  ["Who defeated Goliath?", ["Saul","Samuel","David","Jonathan"], 2],
+  ["In which town was Jesus born?", ["Nazareth","Jerusalem","Bethlehem","Jericho"], 2],
+  ["How many disciples did Jesus choose?", ["10","12","7","70"], 1],
+  ["Who led the Israelites out of Egypt?", ["Aaron","Joshua","Moses","Joseph"], 2],
+  ["What is the last book of the Bible?", ["Jude","Acts","Malachi","Revelation"], 3],
+  ["Who was the first man created by God?", ["Adam","Cain","Abel","Seth"], 0],
+  ["Which disciple betrayed Jesus?", ["Peter","Thomas","Judas Iscariot","Philip"], 2],
+  ["On which mountain did Moses receive the Ten Commandments?", ["Mount Carmel","Mount Sinai","Mount Zion","Mount Ararat"], 1],
+  ["On which mountains did Noah's ark come to rest?", ["Mount Sinai","Ararat","Mount Nebo","Mount of Olives"], 1],
+  ["Which son of Adam and Eve killed his brother?", ["Seth","Cain","Esau","Ham"], 1],
+  ["What was Jesus' first miracle recorded in John's Gospel?", ["Healing a blind man","Feeding the 5,000","Turning water into wine","Raising Lazarus"], 2],
+  ["Who was thrown into the lions' den?", ["Daniel","Joseph","Elijah","Isaiah"], 0],
+  ["What was the name of Jesus' mother?", ["Martha","Mary","Elizabeth","Ruth"], 1],
+  ["Which son of Jacob was sold into slavery by his brothers?", ["Benjamin","Joseph","Judah","Reuben"], 1],
+  ["How many plagues struck Egypt?", ["7","10","12","40"], 1],
+  ["Which disciple denied Jesus three times?", ["Peter","John","Andrew","James"], 0],
+  ["Which king was known for his great wisdom?", ["David","Solomon","Saul","Hezekiah"], 1],
+  ["In which garden did Adam and Eve live?", ["Gethsemane","Eden","Babel","Goshen"], 1],
+  ["Who baptised Jesus?", ["Peter","Paul","John the Baptist","Andrew"], 2],
+  ["For how many days and nights did it rain during the flood?", ["7","40","100","150"], 1],
+  ["Who was Abraham's wife?", ["Rebekah","Rachel","Sarah","Leah"], 2],
+  ["Which son did Abraham almost sacrifice?", ["Ishmael","Isaac","Jacob","Esau"], 1],
+  ["Which apostle, formerly called Saul, wrote many of the New Testament letters?", ["Peter","Paul","Barnabas","Timothy"], 1],
+  ["Which city's walls fell after the Israelites marched around them?", ["Jericho","Ai","Babylon","Nineveh"], 0],
+  ["Which judge lost his strength when his hair was cut?", ["Gideon","Samson","Saul","Joshua"], 1],
+  ["How many books are in the Protestant Bible?", ["39","66","73","27"], 1],
+  ["What was the name of the tower where God confused human languages?", ["Babel","Sodom","Ur","Nineveh"], 0],
+  ["Who was Jacob's twin brother?", ["Esau","Laban","Reuben","Ishmael"], 0],
+  ["Who interpreted Pharaoh's dreams?", ["Moses","Daniel","Joseph","Aaron"], 2],
+  ["In which Gospel is the Sermon on the Mount found?", ["Mark","Matthew","Luke","John"], 1],
+  ["Which two words make up John 11:35, the shortest verse in many English Bibles?", ["Jesus wept","God is","Pray always","Be still"], 0],
+  ["Who was Moses' brother and first high priest?", ["Aaron","Joshua","Caleb","Levi"], 0],
+  ["Which queen saved the Jews from Haman's plot?", ["Ruth","Esther","Deborah","Jezebel"], 1],
+  ["Which book tells of the Israelites' escape from Egypt?", ["Genesis","Exodus","Leviticus","Numbers"], 1],
+  ["Which tax collector climbed a sycamore tree to see Jesus?", ["Matthew","Zacchaeus","Bartimaeus","Nicodemus"], 1],
+  ["Who was the mother of John the Baptist?", ["Mary","Elizabeth","Anna","Hannah"], 1],
+  ["What was the bread-like food God gave the Israelites in the desert?", ["Manna","Quail","Honey","Barley"], 0],
+  ["Which disciple doubted Jesus' resurrection until he saw the wounds?", ["Thomas","Philip","Bartholomew","Jude"], 0],
+  ["For how many days did Jesus fast in the wilderness?", ["3","7","40","100"], 2],
+  ["Who was the first king of Israel?", ["David","Saul","Solomon","Samuel"], 1],
+  ["What was the name of the father of the apostles James and John?", ["Zebedee","Alphaeus","Jonah","Cleopas"], 0],
+  ["Who was Ruth's mother-in-law?", ["Naomi","Orpah","Hannah","Miriam"], 0],
+  ["Which prophet was taken up to heaven in a chariot of fire?", ["Elisha","Elijah","Isaiah","Jeremiah"], 1],
+  ["Which man lost his family and wealth yet kept his faith in God?", ["Job","Jonah","Jeremiah","Joel"], 0],
+  ["Which disciple walked on water towards Jesus?", ["Peter","John","James","Andrew"], 0],
+  ["In which garden did Jesus pray before his arrest?", ["Eden","Gethsemane","Golgotha","Bethany"], 1],
+  ["What was the place of Jesus' crucifixion called?", ["Golgotha","Zion","Carmel","Hebron"], 0],
+  ["Which Roman governor sentenced Jesus to be crucified?", ["Herod","Pontius Pilate","Caesar Augustus","Felix"], 1],
+  ["Whom did Jesus raise from the dead after four days in the tomb?", ["Lazarus","Jairus","Nicodemus","Stephen"], 0],
+  ["What did Jesus use to feed the 5,000?", ["3 loaves and 2 fish","5 loaves and 2 fish","7 loaves and 3 fish","2 loaves and 5 fish"], 1],
+  ["Who was the first Christian martyr?", ["Stephen","James","Paul","Barnabas"], 0],
+  ["On the road to which city did Saul meet the risen Jesus?", ["Jericho","Damascus","Emmaus","Jerusalem"], 1],
+  ["Who is traditionally credited with writing most of the Psalms?", ["Moses","David","Solomon","Asaph"], 1],
+  ["Who was the mother of the prophet Samuel?", ["Hannah","Sarah","Rachel","Leah"], 0],
+  ["What land was promised to Abraham's descendants, 'flowing with milk and honey'?", ["Canaan","Egypt","Assyria","Persia"], 0],
+  ["Who succeeded Moses as leader of the Israelites?", ["Caleb","Joshua","Aaron","Gideon"], 1],
+  ["How many sons did Jacob have?", ["10","12","7","13"], 1],
+  ["Which son of Jacob was given a coat of many colours?", ["Benjamin","Joseph","Judah","Levi"], 1],
+  ["Which of these is NOT a fruit of the Spirit listed in Galatians 5?", ["Love","Joy","Pride","Peace"], 2],
+  ["Who wrote the book of Revelation?", ["Paul","Peter","John","Luke"], 2],
+  ["Which Gospel writer was a physician?", ["Luke","Mark","Matthew","John"], 0],
+  ["Who first announced Jesus' birth to the shepherds?", ["Wise men","Angels","Herod","Prophets"], 1],
+  ["What gifts did the Magi bring to Jesus?", ["Gold, silver and bronze","Gold, frankincense and myrrh","Silk, spice and gold","Frankincense, wine and oil"], 1],
+  ["Which king ordered the killing of baby boys in Bethlehem?", ["Herod","Nebuchadnezzar","Pharaoh","Saul"], 0],
+  ["What was the trade of Joseph, Jesus' earthly father?", ["Fisherman","Carpenter","Shepherd","Tentmaker"], 1],
+  ["What was the apostle Paul's trade?", ["Tentmaker","Carpenter","Tax collector","Physician"], 0],
+  ["Which disciple was Peter's brother?", ["Andrew","Philip","Thomas","Matthew"], 0],
+  ["Which disciple was a tax collector before following Jesus?", ["Matthew","Mark","Simon","Judas"], 0],
+  ["In which town did Jesus grow up?", ["Bethlehem","Nazareth","Capernaum","Jericho"], 1],
+  ["On which sea did Jesus calm a storm?", ["Red Sea","Sea of Galilee","Dead Sea","Mediterranean Sea"], 1],
+  ["Which sea did Moses part?", ["Red Sea","Dead Sea","Sea of Galilee","Black Sea"], 0],
+  ["In which river was Jesus baptised?", ["Nile","Euphrates","Jordan","Tigris"], 2],
+  ["Who was turned into a pillar of salt?", ["Sarah","Lot's wife","Rachel","Hagar"], 1],
+  ["Which two cities were destroyed by fire from heaven?", ["Sodom and Gomorrah","Tyre and Sidon","Ur and Haran","Ai and Bethel"], 0],
+  ["Who was Abraham's nephew?", ["Lot","Laban","Nahor","Isaac"], 0],
+  ["With whom did Jacob wrestle through the night?", ["A lion","An angel","Esau","A giant"], 1],
+  ["Who sold his birthright for a bowl of stew?", ["Jacob","Esau","Ishmael","Reuben"], 1],
+  ["What weapon did David use against Goliath?", ["Sword","Sling","Spear","Bow"], 1],
+  ["Which people did Goliath fight for?", ["Philistines","Egyptians","Babylonians","Romans"], 0],
+  ["Whom did Ruth marry in Bethlehem?", ["Boaz","Elimelech","Obed","Jesse"], 0],
+  ["Who was the father of King David?", ["Jesse","Obed","Boaz","Saul"], 0],
+  ["Which three men were thrown into the fiery furnace?", ["Peter, James and John","Shadrach, Meshach and Abednego","Daniel and Ezekiel","Moses, Aaron and Hur"], 1],
+  ["Which king saw the writing on the wall?", ["Nebuchadnezzar","Belshazzar","Darius","Cyrus"], 1],
+  ["Who succeeded Elijah as prophet?", ["Elisha","Isaiah","Samuel","Nathan"], 0],
+  ["Which prophet anointed David as king?", ["Samuel","Nathan","Eli","Gad"], 0],
+  ["Which queen travelled to test the wisdom of King Solomon?", ["Queen of Sheba","Esther","Jezebel","Athaliah"], 0],
+  ["Who led the rebuilding of Jerusalem's walls?", ["Ezra","Nehemiah","Zerubbabel","Haggai"], 1],
+  ["Which prophet saw a vision of a valley of dry bones?", ["Ezekiel","Jeremiah","Hosea","Micah"], 0],
+  ["Which prophet is known as the 'weeping prophet'?", ["Isaiah","Jeremiah","Amos","Obadiah"], 1],
+  ["In which language was the New Testament originally written?", ["Hebrew","Latin","Greek","Aramaic"], 2],
+  ["Which book follows the four Gospels in the New Testament?", ["Romans","Acts","Hebrews","James"], 1],
+  ["How many commandments did God give Moses on the tablets?", ["7","10","12","613"], 1],
+  ["Who replaced Judas Iscariot among the twelve apostles?", ["Matthias","Barnabas","Silas","Timothy"], 0],
+  ["Which disciple is called 'the disciple whom Jesus loved'?", ["John","Peter","James","Andrew"], 0],
+  ["Who was the first woman?", ["Sarah","Eve","Rebekah","Hannah"], 1],
+  ["Who is the oldest person recorded in the Bible?", ["Noah","Methuselah","Adam","Enoch"], 1],
+];
+
+const TOTAL = 10, TIME = 15;
+const $ = id => document.getElementById(id);
+let qs, idx, score, timer, left, locked;
+
+const shuffle = a => { a = a.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const show = id => ["start","game","end"].forEach(s => $(s).classList.toggle("hidden", s!==id));
+const getBest = () => { try { return localStorage.getItem("bibleBest"); } catch { return null; } };
+const setBest = v => { try { localStorage.setItem("bibleBest", v); } catch {} };
+$("best").textContent = getBest() ?? "–";
+
+function start() {
+  qs = shuffle(QUESTIONS).slice(0, TOTAL).map(([q,o,a]) => {
+    const opts = shuffle(o.map((t,i)=>({t,c:i===a})));
+    return { q, opts };
+  });
+  idx = 0; score = 0;
+  show("game"); render();
+}
+
+function render() {
+  locked = false;
+  const cur = qs[idx];
+  $("progress").textContent = `Question ${idx+1} / ${TOTAL}`;
+  $("score").textContent = `Score: ${score}`;
+  $("question").textContent = cur.q;
+  $("nextBtn").classList.add("hidden");
+  const box = $("options"); box.innerHTML = "";
+  cur.opts.forEach((o,i) => {
+    const b = document.createElement("button");
+    b.className = "opt"; b.textContent = o.t;
+    b.onclick = () => answer(i);
+    box.appendChild(b);
+  });
+  left = TIME; tick(true);
+  clearInterval(timer);
+  timer = setInterval(() => { left--; tick(); if (left<=0) answer(-1); }, 1000);
+}
+
+function tick(reset) {
+  const bar = $("timerBar");
+  if (reset) { bar.style.transition="none"; bar.style.width="100%"; bar.offsetWidth; bar.style.transition=""; }
+  bar.style.width = (left/TIME*100) + "%";
+  bar.style.background = left<=5 ? "var(--bad)" : "";
+}
+
+function answer(i) {
+  if (locked) return;
+  locked = true; clearInterval(timer);
+  const cur = qs[idx];
+  [...$("options").children].forEach((b,n) => {
+    b.disabled = true;
+    if (cur.opts[n].c) b.classList.add("correct");
+    else if (n===i) b.classList.add("wrong");
+  });
+  if (i>=0 && cur.opts[i].c) score++;
+  $("score").textContent = `Score: ${score}`;
+  const nb = $("nextBtn");
+  nb.textContent = idx===TOTAL-1 ? "See Results" : "Next →";
+  nb.classList.remove("hidden");
+  nb.focus();
+}
+
+function next() {
+  if (++idx < TOTAL) return render();
+  const best = Number(getBest() ?? -1);
+  if (score > best) setBest(score);
+  $("best").textContent = Math.max(score, best);
+  $("finalScore").textContent = `${score} / ${TOTAL}`;
+  $("verdict").textContent = score>=9 ? "Outstanding! 🏆" : score>=7 ? "Great job! 🎉" : score>=5 ? "Not bad – keep going! 👍" : "Keep studying the Word! 📚";
+  show("end");
+}
+
+$("startBtn").onclick = start;
+$("againBtn").onclick = start;
+$("nextBtn").onclick = next;
+document.addEventListener("keydown", e => {
+  if ($("game").classList.contains("hidden")) return;
+  if (!locked && "1234".includes(e.key) && e.key) answer(Number(e.key)-1);
+});
+</script>
+</body>
+</html>
