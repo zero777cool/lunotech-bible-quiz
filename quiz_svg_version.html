@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bible Quiz</title>
+<style>
+  :root { --bg:#14213d; --card:#1f2f55; --accent:#fca311; --ok:#2ecc71; --bad:#e74c3c; --text:#f1f1f1; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; padding:16px;
+         background:linear-gradient(#04050d 0%, #0d1434 30%, #1a2050 48%, #0c1124 80%) fixed;
+         color:var(--text); font-family:system-ui,Segoe UI,Arial,sans-serif; }
+  #scene { position:fixed; top:0; left:0; width:100%; height:48vh; z-index:0; pointer-events:none; }
+  .card { position:relative; z-index:1; margin:46vh auto 16px; background:rgba(31,47,85,.93); border-radius:16px;
+          padding:28px; width:100%; max-width:560px; box-shadow:0 10px 30px rgba(0,0,0,.5);
+          border:1px solid rgba(252,163,17,.35); }
+  h1 { margin-top:0; color:var(--accent); }
+  .meta { display:flex; justify-content:space-between; font-size:.9rem; opacity:.85; margin-bottom:8px; }
+  .bar { height:6px; background:#0d1730; border-radius:3px; overflow:hidden; margin-bottom:20px; }
+  .bar > div { height:100%; background:var(--accent); transition:width .3s; }
+  .timer > div { background:var(--ok); transition:width 1s linear; }
+  .q { font-size:1.25rem; margin:0 0 18px; line-height:1.4; }
+  .opt { display:block; width:100%; text-align:left; margin:8px 0; padding:12px 16px; font-size:1rem;
+         color:var(--text); background:#2a3d6b; border:2px solid transparent; border-radius:10px; cursor:pointer; }
+  .opt:hover:enabled { border-color:var(--accent); }
+  .opt.correct { background:var(--ok); color:#07210f; }
+  .opt.wrong { background:var(--bad); }
+  .opt:disabled { cursor:default; }
+  button.main { margin-top:16px; padding:12px 24px; font-size:1rem; font-weight:600; border:0; border-radius:10px;
+                background:var(--accent); color:#14213d; cursor:pointer; }
+  .hidden { display:none; }
+  .score { font-size:3rem; color:var(--accent); margin:10px 0; }
+</style>
+</head>
+<body>
+
+<svg id="scene" viewBox="0 0 1200 500" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
+  <defs>
+    <filter id="b1" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".7"/></filter>
+    <filter id="b3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+    <filter id="b9" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
+    <filter id="cloud" x="-20%" y="-90%" width="140%" height="280%">
+      <feTurbulence type="fractalNoise" baseFrequency=".008 .026" numOctaves="4" seed="11" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="48" xChannelSelector="R" yChannelSelector="G"/>
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <filter id="depth" x="-10%" y="-10%" width="120%" height="120%">
+      <feColorMatrix type="matrix" values=".66 0 0 0 0  0 .66 0 0 0  0 0 .78 0 .02  0 0 0 1 0"/>
+      <feGaussianBlur stdDeviation=".8"/>
+    </filter>
+
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fffbe6" stop-opacity="1"/>
+      <stop offset=".25" stop-color="#ffe9a0" stop-opacity=".55"/>
+      <stop offset=".6" stop-color="#e0a93a" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#e0a93a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ray" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#fff2c0" stop-opacity=".55"/><stop offset="1" stop-color="#fff2c0" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="skin" cx=".38" cy=".32" r=".8">
+      <stop offset="0" stop-color="#f3d3ae"/><stop offset=".55" stop-color="#cf9f73"/><stop offset="1" stop-color="#8a5a38"/>
+    </radialGradient>
+    <linearGradient id="robe" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7a8399"/><stop offset=".22" stop-color="#dfe2ea"/>
+      <stop offset=".5" stop-color="#fbf9f4"/><stop offset=".78" stop-color="#d4d8e2"/><stop offset="1" stop-color="#6f778d"/>
+    </linearGradient>
+    <linearGradient id="robeV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#1a2038" stop-opacity=".45"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6e4f10"/><stop offset=".25" stop-color="#e8c25a"/>
+      <stop offset=".5" stop-color="#fff0a8"/><stop offset=".75" stop-color="#c79a2a"/><stop offset="1" stop-color="#5e430c"/>
+    </linearGradient>
+    <linearGradient id="goldV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff0a8"/><stop offset=".5" stop-color="#c79a2a"/><stop offset="1" stop-color="#6e4f10"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4f8fd"/><stop offset=".45" stop-color="#9aa8ba"/><stop offset="1" stop-color="#3f4859"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5d6879"/><stop offset=".48" stop-color="#ffffff"/><stop offset=".52" stop-color="#c9d3e0"/><stop offset="1" stop-color="#6c7788"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#d7dff0"/><stop offset="1" stop-color="#8f9cc4"/>
+    </linearGradient>
+    <linearGradient id="velvet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8f1d2b"/><stop offset="1" stop-color="#2e0810"/>
+    </linearGradient>
+    <linearGradient id="mantle" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a3202f"/><stop offset=".6" stop-color="#6a1220"/><stop offset="1" stop-color="#3a0910"/>
+    </linearGradient>
+    <linearGradient id="leather" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d3320"/><stop offset="1" stop-color="#241008"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3c6fd1"/><stop offset="1" stop-color="#0f2658"/>
+    </linearGradient>
+    <linearGradient id="stone" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#15151d"/><stop offset=".5" stop-color="#4b4b5a"/><stop offset="1" stop-color="#15151d"/>
+    </linearGradient>
+    <linearGradient id="hairG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a5636"/><stop offset="1" stop-color="#32200f"/>
+    </linearGradient>
+
+    <!-- feathered wing (left); mirrored for the right -->
+    <g id="wing">
+      <path d="M-12 -45 C-60 -120 -150 -105 -185 -20 C-170 -30 -160 -22 -150 -28 C-155 -5 -135 5 -122 -2 C-122 20 -100 28 -88 20 C-85 40 -60 45 -48 35 C-40 50 -22 48 -12 30Z" fill="url(#wing)" stroke="#aeb9d8" stroke-width=".8"/>
+      <g fill="none" stroke="#8d9ac0" stroke-width="1" opacity=".6">
+        <path d="M-20 -35 C-70 -90 -130 -85 -170 -25"/>
+        <path d="M-20 -20 C-65 -60 -115 -55 -150 -10"/>
+        <path d="M-20 -5 C-55 -30 -95 -25 -120 5"/>
+        <path d="M-60 -75 L-92 -20 M-95 -92 L-125 -30 M-130 -90 L-150 -38"/>
+      </g>
+    </g>
+
+    <!-- Angel clad in the armour of God: helmet of salvation, breastplate of righteousness, belt of truth,
+         shield of faith, sword of the Spirit -->
+    <g id="angel">
+      <use href="#wing"/>
+      <use href="#wing" transform="scale(-1 1)"/>
+      <path d="M-22 -40 L22 -40 L30 40 Q36 80 58 104 L-58 104 Q-36 80 -30 40Z" fill="url(#robe)"/>
+      <path d="M-22 -40 L22 -40 L30 40 Q36 80 58 104 L-58 104 Q-36 80 -30 40Z" fill="url(#robeV)"/>
+      <path d="M-8 20 Q-12 60 -22 100 M8 20 Q12 60 22 100 M0 24 L0 100" stroke="#5c6580" stroke-width="1" fill="none" opacity=".5"/>
+      <path d="M24 -36 L46 -8" stroke="url(#robe)" stroke-width="10" stroke-linecap="round"/>
+      <path d="M-24 -36 L-40 -6" stroke="url(#robe)" stroke-width="10" stroke-linecap="round"/>
+      <path d="M-22 -41 Q0 -50 22 -41 L19 -6 Q0 4 -19 -6Z" fill="url(#steel)" stroke="#39414f" stroke-width=".8"/>
+      <path d="M0 -44 V0" stroke="#fff" stroke-width="1" opacity=".5"/>
+      <ellipse cx="-27" cy="-40" rx="11" ry="8" fill="url(#steel)" stroke="#39414f" stroke-width=".8"/>
+      <ellipse cx="27" cy="-40" rx="11" ry="8" fill="url(#steel)" stroke="#39414f" stroke-width=".8"/>
+      <rect x="-20" y="-6" width="40" height="7" rx="2" fill="url(#gold)"/>
+      <rect x="40" y="-14" width="12" height="9" rx="3" fill="url(#steel)"/>
+      <ellipse cx="0" cy="-55" rx="9" ry="11" fill="url(#skin)"/>
+      <path d="M-10 -56 Q-11 -77 0 -78 Q11 -77 10 -56 L9 -62 Q0 -67 -9 -62Z" fill="url(#steel)" stroke="#39414f" stroke-width=".8"/>
+      <path d="M0 -78 Q16 -92 26 -72 Q16 -80 5 -70Z" fill="url(#mantle)"/>
+      <ellipse cx="0" cy="-86" rx="13" ry="3.6" fill="none" stroke="#ffe08a" stroke-width="2.2"/>
+      <ellipse cx="0" cy="-86" rx="13" ry="3.6" fill="none" stroke="#fff3b8" stroke-width="6" opacity=".35" filter="url(#b3)"/>
+      <!-- sword -->
+      <path d="M46 -108 L50 -10 H42 Z" fill="url(#blade)"/>
+      <path d="M46 -108 L46 -10" stroke="#fff" stroke-width=".8" opacity=".8"/>
+      <path d="M46 -108 L50 -10 H42 Z" fill="none" stroke="#fff6cf" stroke-width="3" opacity=".35" filter="url(#b3)"/>
+      <rect x="35" y="-11" width="22" height="4" rx="1.5" fill="url(#gold)"/>
+      <rect x="44" y="-7" width="4" height="12" fill="#3a2414"/>
+      <circle cx="46" cy="7" r="3" fill="url(#gold)"/>
+      <!-- shield -->
+      <path d="M-76 -30 H-34 V12 Q-34 44 -55 60 Q-76 44 -76 12Z" fill="url(#shield)" stroke="url(#gold)" stroke-width="3"/>
+      <path d="M-55 -24 V50 M-70 6 H-40" stroke="url(#gold)" stroke-width="3.5"/>
+      <circle cx="-55" cy="6" r="6" fill="url(#gold)"/>
+    </g>
+
+    <!-- Disciple on a throne: robe and hair colours set with --robe / --hair on each <use> -->
+    <g id="disciple">
+      <path d="M-24 0 V-86 Q-24 -112 0 -116 Q24 -112 24 -86 V0Z" fill="url(#stone)" stroke="url(#goldV)" stroke-width="2.4"/>
+      <rect x="-31" y="-22" width="62" height="22" rx="3" fill="url(#stone)" stroke="url(#goldV)" stroke-width="1.6"/>
+      <path d="M-19 -22 L-16 -60 Q0 -68 16 -60 L19 -22 L27 -3 H-27Z" style="fill:var(--robe)"/>
+      <path d="M-19 -22 L-16 -60 Q0 -68 16 -60 L19 -22 L27 -3 H-27Z" fill="url(#robeV)"/>
+      <path d="M-6 -50 Q-9 -26 -14 -4 M6 -50 Q9 -26 14 -4" stroke="#000" stroke-width=".8" fill="none" opacity=".35"/>
+      <ellipse cx="0" cy="-70" rx="6.2" ry="7.6" fill="url(#skin)"/>
+      <path d="M-6.6 -72 Q-7 -80 0 -80 Q7 -80 6.6 -72 Q3 -76 0 -75 Q-3 -76 -6.6 -72Z" style="fill:var(--hair)"/>
+      <path d="M-5.6 -68 Q-5 -58 0 -56 Q5 -58 5.6 -68 Q3 -63 0 -63 Q-3 -63 -5.6 -68Z" style="fill:var(--hair)"/>
+      <ellipse cx="0" cy="-86" rx="8" ry="2.4" fill="none" stroke="#ffe08a" stroke-width="1.6"/>
+    </g>
+  </defs>
+
+  <!-- heavenly glory -->
+  <circle cx="600" cy="215" r="330" fill="url(#glow)"/>
+  <g filter="url(#b9)" opacity=".75">
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(-72 600 215)"/>
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(-52 600 215)"/>
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(-32 600 215)"/>
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(-12 600 215)"/>
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(12 600 215)"/>
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(32 600 215)"/>
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(52 600 215)"/>
+    <path d="M600 215 L545 -260 L655 -260Z" fill="url(#ray)" transform="rotate(72 600 215)"/>
+  </g>
+  <g fill="#fff" opacity=".6">
+    <circle cx="60" cy="40" r="1.2"/><circle cx="170" cy="90" r="1"/><circle cx="420" cy="26" r="1.3"/>
+    <circle cx="1010" cy="80" r="1.3"/><circle cx="1130" cy="30" r="1"/><circle cx="880" cy="22" r="1"/>
+  </g>
+
+  <!-- distant cloud bank -->
+  <g fill="#c9cfe6" opacity=".28" filter="url(#cloud)">
+    <ellipse cx="200" cy="330" rx="220" ry="30"/><ellipse cx="1000" cy="330" rx="220" ry="30"/>
+  </g>
+
+  <!-- rear angels (smaller, hazier) -->
+  <g filter="url(#depth)">
+    <use href="#angel" transform="translate(215 150) scale(.82)"/>
+    <use href="#angel" transform="translate(985 150) scale(-.82 .82)"/>
+  </g>
+
+  <!-- disciples, back row (atmospheric depth) -->
+  <g filter="url(#depth)">
+    <use href="#disciple" transform="translate(370 408) scale(.85)" style="--robe:#35537a;--hair:#6f6f78"/>
+    <use href="#disciple" transform="translate(275 408) scale(.85)" style="--robe:#6b3c5a;--hair:#3b2616"/>
+    <use href="#disciple" transform="translate(180 408) scale(.85)" style="--robe:#3d6a4a;--hair:#8a8a92"/>
+    <use href="#disciple" transform="translate(830 408) scale(.85)" style="--robe:#8a5430;--hair:#2c1c10"/>
+    <use href="#disciple" transform="translate(925 408) scale(.85)" style="--robe:#4a4377;--hair:#6f6f78"/>
+    <use href="#disciple" transform="translate(1020 408) scale(.85)" style="--robe:#7a6a28;--hair:#4a3320"/>
+  </g>
+
+  <!-- front angels -->
+  <use href="#angel" transform="translate(350 168) scale(.95)"/>
+  <use href="#angel" transform="translate(850 168) scale(-.95 .95)"/>
+  <use href="#angel" transform="translate(95 200) scale(.9)"/>
+  <use href="#angel" transform="translate(1105 200) scale(-.9 .9)"/>
+
+  <!-- disciples, front row -->
+  <use href="#disciple" transform="translate(425 482)" style="--robe:#8e3b3b;--hair:#4a3320"/>
+  <use href="#disciple" transform="translate(325 482)" style="--robe:#2c6a70;--hair:#8a8a92"/>
+  <use href="#disciple" transform="translate(225 482)" style="--robe:#65492f;--hair:#2c1c10"/>
+  <use href="#disciple" transform="translate(775 482)" style="--robe:#566f2e;--hair:#6f6f78"/>
+  <use href="#disciple" transform="translate(875 482)" style="--robe:#7e3b6e;--hair:#3b2616"/>
+  <use href="#disciple" transform="translate(975 482)" style="--robe:#2f4a80;--hair:#8a8a92"/>
+
+  <!-- the throne of Christ -->
+  <path d="M488 452 V200 Q488 92 600 62 Q712 92 712 200 V452Z" fill="url(#gold)" stroke="#5e430c" stroke-width="3"/>
+  <path d="M510 440 V205 Q510 118 600 92 Q690 118 690 205 V440Z" fill="url(#velvet)"/>
+  <path d="M510 205 Q510 118 600 92 Q690 118 690 205" fill="none" stroke="url(#goldV)" stroke-width="3"/>
+  <circle cx="600" cy="56" r="9" fill="url(#goldV)"/><path d="M600 28 V52 M590 38 H610" stroke="url(#goldV)" stroke-width="4"/>
+  <rect x="493" y="330" width="26" height="70" rx="9" fill="url(#gold)" stroke="#5e430c"/>
+  <rect x="681" y="330" width="26" height="70" rx="9" fill="url(#gold)" stroke="#5e430c"/>
+  <rect x="486" y="396" width="228" height="26" rx="7" fill="url(#gold)" stroke="#5e430c"/>
+  <rect x="474" y="420" width="252" height="36" rx="5" fill="url(#stone)" stroke="url(#goldV)" stroke-width="2"/>
+  <rect x="452" y="456" width="296" height="14" rx="3" fill="url(#gold)"/>
+
+  <!-- Jesus: robe -->
+  <path d="M548 252 Q600 232 652 252 L690 332 Q700 380 706 414 L494 414 Q500 380 510 332Z" fill="url(#robe)"/>
+  <path d="M548 252 Q600 232 652 252 L690 332 Q700 380 706 414 L494 414 Q500 380 510 332Z" fill="url(#robeV)"/>
+  <g fill="none" stroke="#5c6580" stroke-width="1.2" opacity=".45">
+    <path d="M570 262 Q560 330 540 410"/><path d="M590 268 Q585 340 575 412"/>
+    <path d="M630 268 Q636 340 628 412"/><path d="M650 262 Q662 330 676 410"/>
+  </g>
+  <g fill="none" stroke="#fff" stroke-width="1.4" opacity=".55">
+    <path d="M580 262 Q572 335 556 410"/><path d="M620 264 Q624 340 610 412"/>
+  </g>
+  <!-- mantle draped across the lap -->
+  <path d="M498 400 Q552 346 600 372 Q650 342 702 400 L708 420 H492Z" fill="url(#mantle)"/>
+  <path d="M520 392 Q560 360 598 380 M680 392 Q640 358 602 380" stroke="#e8586a" stroke-width="1.2" fill="none" opacity=".4"/>
+  <path d="M556 250 L606 246 L656 352 L630 360Z" fill="url(#velvet)" opacity=".92"/>
+  <!-- neck, head, hair, beard -->
+  <path d="M590 224 H610 V250 Q600 258 590 250Z" fill="#a8744c"/>
+  <path d="M578 198 Q572 160 600 158 Q628 160 622 198 Q632 238 624 266 Q614 246 611 228 L589 228 Q586 246 576 266 Q568 238 578 198Z" fill="url(#hairG)"/>
+  <ellipse cx="600" cy="205" rx="19" ry="24" fill="url(#skin)"/>
+  <path d="M580 200 Q582 172 600 170 Q618 172 620 200 Q616 182 600 184 Q584 182 580 200Z" fill="url(#hairG)"/>
+  <path d="M582 214 Q583 250 600 265 Q617 250 618 214 Q612 232 600 234 Q588 232 582 214Z" fill="url(#hairG)"/>
+  <path d="M592 222 Q600 226 608 222 Q600 220 592 222Z" fill="#2c1a0e" opacity=".8"/>
+  <path d="M586 199 Q592 196 597 199 M603 199 Q608 196 614 199" stroke="#3b2616" stroke-width="1.5" fill="none"/>
+  <ellipse cx="592" cy="204" rx="2.6" ry="1.2" fill="#2a1a10"/><ellipse cx="608" cy="204" rx="2.6" ry="1.2" fill="#2a1a10"/>
+  <path d="M600 206 Q596 216 601 217" stroke="#8a5a38" stroke-width="1.2" fill="none" opacity=".7"/>
+  <circle cx="600" cy="205" r="36" fill="none" stroke="#fff3b8" stroke-width="10" opacity=".4" filter="url(#b3)"/>
+  <circle cx="600" cy="205" r="36" fill="none" stroke="url(#goldV)" stroke-width="3"/>
+
+  <!-- left hand: sword of the Spirit -->
+  <path d="M552 252 Q526 276 516 324 L544 334 Q552 292 568 264Z" fill="url(#robe)" stroke="#8d95ab" stroke-width=".8"/>
+  <path d="M510 316 L514 88 L518 316Z" fill="none" stroke="#fff6cf" stroke-width="8" opacity=".5" filter="url(#b3)"/>
+  <path d="M510 316 L514 88 L518 316Z" fill="url(#blade)"/>
+  <path d="M514 88 V316" stroke="#fff" stroke-width=".9"/>
+  <rect x="494" y="314" width="40" height="8" rx="2.5" fill="url(#gold)" stroke="#5e430c" stroke-width=".8"/>
+  <rect x="511" y="322" width="6" height="26" fill="#3a2414"/>
+  <circle cx="514" cy="352" r="5.5" fill="url(#gold)"/>
+  <ellipse cx="514" cy="326" rx="10" ry="8" fill="url(#skin)"/>
+
+  <!-- right hand: the Holy Bible -->
+  <path d="M648 252 Q674 276 684 324 L656 334 Q648 292 632 264Z" fill="url(#robe)" stroke="#8d95ab" stroke-width=".8"/>
+  <g transform="translate(676 306) rotate(-7)">
+    <rect x="-31" y="-42" width="62" height="84" rx="3" fill="url(#leather)" stroke="#e8c25a" stroke-width="1.8"/>
+    <rect x="-25" y="-36" width="50" height="72" rx="1.5" fill="none" stroke="#c79a2a" stroke-width="1" opacity=".8"/>
+    <path d="M-2 -22 V24 M-14 -6 H10" stroke="url(#goldV)" stroke-width="4"/>
+    <path d="M-31 -42 V42" stroke="#12080a" stroke-width="5" opacity=".55"/>
+    <rect x="-31" y="39" width="62" height="5" fill="#f3e9c6" stroke="#b79a5a" stroke-width=".6"/>
+  </g>
+  <ellipse cx="660" cy="326" rx="9" ry="7.5" fill="url(#skin)"/>
+
+  <!-- cloud floor -->
+  <g fill="#e6e9f7" opacity=".5" filter="url(#cloud)">
+    <ellipse cx="150" cy="494" rx="230" ry="20"/><ellipse cx="450" cy="500" rx="210" ry="18"/>
+    <ellipse cx="750" cy="500" rx="210" ry="18"/><ellipse cx="1050" cy="494" rx="230" ry="20"/>
+  </g>
+</svg>
+
+<div class="card">
+  <div id="start">
+    <h1>📖 Bible Quiz</h1>
+    <p>10 random questions. 15 seconds each. How many can you get right?</p>
+    <p>Best score: <strong id="best">–</strong></p>
+    <button class="main" id="startBtn">Start Quiz</button>
+  </div>
+
+  <div id="game" class="hidden">
+    <div class="meta"><span id="progress"></span><span id="score"></span></div>
+    <div class="bar timer"><div id="timerBar" style="width:100%"></div></div>
+    <p class="q" id="question"></p>
+    <div id="options"></div>
+    <button class="main hidden" id="nextBtn">Next →</button>
+  </div>
+
+  <div id="end" class="hidden">
+    <h1>Quiz complete!</h1>
+    <div class="score" id="finalScore"></div>
+    <p id="verdict"></p>
+    <button class="main" id="againBtn">Play Again</button>
+  </div>
+</div>
+
+<script>
+// Total questions in the bank: 100 (update this number when adding or removing questions)
+// Each entry: [question, [options], index of correct option]
+const QUESTIONS = [
+  ["Who built the ark?", ["Moses","Noah","Abraham","David"], 1],
+  ["What is the first book of the Bible?", ["Exodus","Genesis","Psalms","Matthew"], 1],
+  ["How many days did God spend creating the world before resting on the next?", ["Five","Six","Seven","Ten"], 1],
+  ["Who was swallowed by a great fish?", ["Jonah","Elijah","Daniel","Peter"], 0],
+  ["Who defeated Goliath?", ["Saul","Samuel","David","Jonathan"], 2],
+  ["In which town was Jesus born?", ["Nazareth","Jerusalem","Bethlehem","Jericho"], 2],
+  ["How many disciples did Jesus choose?", ["10","12","7","70"], 1],
+  ["Who led the Israelites out of Egypt?", ["Aaron","Joshua","Moses","Joseph"], 2],
+  ["What is the last book of the Bible?", ["Jude","Acts","Malachi","Revelation"], 3],
+  ["Who was the first man created by God?", ["Adam","Cain","Abel","Seth"], 0],
+  ["Which disciple betrayed Jesus?", ["Peter","Thomas","Judas Iscariot","Philip"], 2],
+  ["On which mountain did Moses receive the Ten Commandments?", ["Mount Carmel","Mount Sinai","Mount Zion","Mount Ararat"], 1],
+  ["On which mountains did Noah's ark come to rest?", ["Mount Sinai","Ararat","Mount Nebo","Mount of Olives"], 1],
+  ["Which son of Adam and Eve killed his brother?", ["Seth","Cain","Esau","Ham"], 1],
+  ["What was Jesus' first miracle recorded in John's Gospel?", ["Healing a blind man","Feeding the 5,000","Turning water into wine","Raising Lazarus"], 2],
+  ["Who was thrown into the lions' den?", ["Daniel","Joseph","Elijah","Isaiah"], 0],
+  ["What was the name of Jesus' mother?", ["Martha","Mary","Elizabeth","Ruth"], 1],
+  ["Which son of Jacob was sold into slavery by his brothers?", ["Benjamin","Joseph","Judah","Reuben"], 1],
+  ["How many plagues struck Egypt?", ["7","10","12","40"], 1],
+  ["Which disciple denied Jesus three times?", ["Peter","John","Andrew","James"], 0],
+  ["Which king was known for his great wisdom?", ["David","Solomon","Saul","Hezekiah"], 1],
+  ["In which garden did Adam and Eve live?", ["Gethsemane","Eden","Babel","Goshen"], 1],
+  ["Who baptised Jesus?", ["Peter","Paul","John the Baptist","Andrew"], 2],
+  ["For how many days and nights did it rain during the flood?", ["7","40","100","150"], 1],
+  ["Who was Abraham's wife?", ["Rebekah","Rachel","Sarah","Leah"], 2],
+  ["Which son did Abraham almost sacrifice?", ["Ishmael","Isaac","Jacob","Esau"], 1],
+  ["Which apostle, formerly called Saul, wrote many of the New Testament letters?", ["Peter","Paul","Barnabas","Timothy"], 1],
+  ["Which city's walls fell after the Israelites marched around them?", ["Jericho","Ai","Babylon","Nineveh"], 0],
+  ["Which judge lost his strength when his hair was cut?", ["Gideon","Samson","Saul","Joshua"], 1],
+  ["How many books are in the Protestant Bible?", ["39","66","73","27"], 1],
+  ["What was the name of the tower where God confused human languages?", ["Babel","Sodom","Ur","Nineveh"], 0],
+  ["Who was Jacob's twin brother?", ["Esau","Laban","Reuben","Ishmael"], 0],
+  ["Who interpreted Pharaoh's dreams?", ["Moses","Daniel","Joseph","Aaron"], 2],
+  ["In which Gospel is the Sermon on the Mount found?", ["Mark","Matthew","Luke","John"], 1],
+  ["Which two words make up John 11:35, the shortest verse in many English Bibles?", ["Jesus wept","God is","Pray always","Be still"], 0],
+  ["Who was Moses' brother and first high priest?", ["Aaron","Joshua","Caleb","Levi"], 0],
+  ["Which queen saved the Jews from Haman's plot?", ["Ruth","Esther","Deborah","Jezebel"], 1],
+  ["Which book tells of the Israelites' escape from Egypt?", ["Genesis","Exodus","Leviticus","Numbers"], 1],
+  ["Which tax collector climbed a sycamore tree to see Jesus?", ["Matthew","Zacchaeus","Bartimaeus","Nicodemus"], 1],
+  ["Who was the mother of John the Baptist?", ["Mary","Elizabeth","Anna","Hannah"], 1],
+  ["What was the bread-like food God gave the Israelites in the desert?", ["Manna","Quail","Honey","Barley"], 0],
+  ["Which disciple doubted Jesus' resurrection until he saw the wounds?", ["Thomas","Philip","Bartholomew","Jude"], 0],
+  ["For how many days did Jesus fast in the wilderness?", ["3","7","40","100"], 2],
+  ["Who was the first king of Israel?", ["David","Saul","Solomon","Samuel"], 1],
+  ["What was the name of the father of the apostles James and John?", ["Zebedee","Alphaeus","Jonah","Cleopas"], 0],
+  ["Who was Ruth's mother-in-law?", ["Naomi","Orpah","Hannah","Miriam"], 0],
+  ["Which prophet was taken up to heaven in a chariot of fire?", ["Elisha","Elijah","Isaiah","Jeremiah"], 1],
+  ["Which man lost his family and wealth yet kept his faith in God?", ["Job","Jonah","Jeremiah","Joel"], 0],
+  ["Which disciple walked on water towards Jesus?", ["Peter","John","James","Andrew"], 0],
+  ["In which garden did Jesus pray before his arrest?", ["Eden","Gethsemane","Golgotha","Bethany"], 1],
+  ["What was the place of Jesus' crucifixion called?", ["Golgotha","Zion","Carmel","Hebron"], 0],
+  ["Which Roman governor sentenced Jesus to be crucified?", ["Herod","Pontius Pilate","Caesar Augustus","Felix"], 1],
+  ["Whom did Jesus raise from the dead after four days in the tomb?", ["Lazarus","Jairus","Nicodemus","Stephen"], 0],
+  ["What did Jesus use to feed the 5,000?", ["3 loaves and 2 fish","5 loaves and 2 fish","7 loaves and 3 fish","2 loaves and 5 fish"], 1],
+  ["Who was the first Christian martyr?", ["Stephen","James","Paul","Barnabas"], 0],
+  ["On the road to which city did Saul meet the risen Jesus?", ["Jericho","Damascus","Emmaus","Jerusalem"], 1],
+  ["Who is traditionally credited with writing most of the Psalms?", ["Moses","David","Solomon","Asaph"], 1],
+  ["Who was the mother of the prophet Samuel?", ["Hannah","Sarah","Rachel","Leah"], 0],
+  ["What land was promised to Abraham's descendants, 'flowing with milk and honey'?", ["Canaan","Egypt","Assyria","Persia"], 0],
+  ["Who succeeded Moses as leader of the Israelites?", ["Caleb","Joshua","Aaron","Gideon"], 1],
+  ["How many sons did Jacob have?", ["10","12","7","13"], 1],
+  ["Which son of Jacob was given a coat of many colours?", ["Benjamin","Joseph","Judah","Levi"], 1],
+  ["Which of these is NOT a fruit of the Spirit listed in Galatians 5?", ["Love","Joy","Pride","Peace"], 2],
+  ["Who wrote the book of Revelation?", ["Paul","Peter","John","Luke"], 2],
+  ["Which Gospel writer was a physician?", ["Luke","Mark","Matthew","John"], 0],
+  ["Who first announced Jesus' birth to the shepherds?", ["Wise men","Angels","Herod","Prophets"], 1],
+  ["What gifts did the Magi bring to Jesus?", ["Gold, silver and bronze","Gold, frankincense and myrrh","Silk, spice and gold","Frankincense, wine and oil"], 1],
+  ["Which king ordered the killing of baby boys in Bethlehem?", ["Herod","Nebuchadnezzar","Pharaoh","Saul"], 0],
+  ["What was the trade of Joseph, Jesus' earthly father?", ["Fisherman","Carpenter","Shepherd","Tentmaker"], 1],
+  ["What was the apostle Paul's trade?", ["Tentmaker","Carpenter","Tax collector","Physician"], 0],
+  ["Which disciple was Peter's brother?", ["Andrew","Philip","Thomas","Matthew"], 0],
+  ["Which disciple was a tax collector before following Jesus?", ["Matthew","Mark","Simon","Judas"], 0],
+  ["In which town did Jesus grow up?", ["Bethlehem","Nazareth","Capernaum","Jericho"], 1],
+  ["On which sea did Jesus calm a storm?", ["Red Sea","Sea of Galilee","Dead Sea","Mediterranean Sea"], 1],
+  ["Which sea did Moses part?", ["Red Sea","Dead Sea","Sea of Galilee","Black Sea"], 0],
+  ["In which river was Jesus baptised?", ["Nile","Euphrates","Jordan","Tigris"], 2],
+  ["Who was turned into a pillar of salt?", ["Sarah","Lot's wife","Rachel","Hagar"], 1],
+  ["Which two cities were destroyed by fire from heaven?", ["Sodom and Gomorrah","Tyre and Sidon","Ur and Haran","Ai and Bethel"], 0],
+  ["Who was Abraham's nephew?", ["Lot","Laban","Nahor","Isaac"], 0],
+  ["With whom did Jacob wrestle through the night?", ["A lion","An angel","Esau","A giant"], 1],
+  ["Who sold his birthright for a bowl of stew?", ["Jacob","Esau","Ishmael","Reuben"], 1],
+  ["What weapon did David use against Goliath?", ["Sword","Sling","Spear","Bow"], 1],
+  ["Which people did Goliath fight for?", ["Philistines","Egyptians","Babylonians","Romans"], 0],
+  ["Whom did Ruth marry in Bethlehem?", ["Boaz","Elimelech","Obed","Jesse"], 0],
+  ["Who was the father of King David?", ["Jesse","Obed","Boaz","Saul"], 0],
+  ["Which three men were thrown into the fiery furnace?", ["Peter, James and John","Shadrach, Meshach and Abednego","Daniel and Ezekiel","Moses, Aaron and Hur"], 1],
+  ["Which king saw the writing on the wall?", ["Nebuchadnezzar","Belshazzar","Darius","Cyrus"], 1],
+  ["Who succeeded Elijah as prophet?", ["Elisha","Isaiah","Samuel","Nathan"], 0],
+  ["Which prophet anointed David as king?", ["Samuel","Nathan","Eli","Gad"], 0],
+  ["Which queen travelled to test the wisdom of King Solomon?", ["Queen of Sheba","Esther","Jezebel","Athaliah"], 0],
+  ["Who led the rebuilding of Jerusalem's walls?", ["Ezra","Nehemiah","Zerubbabel","Haggai"], 1],
+  ["Which prophet saw a vision of a valley of dry bones?", ["Ezekiel","Jeremiah","Hosea","Micah"], 0],
+  ["Which prophet is known as the 'weeping prophet'?", ["Isaiah","Jeremiah","Amos","Obadiah"], 1],
+  ["In which language was the New Testament originally written?", ["Hebrew","Latin","Greek","Aramaic"], 2],
+  ["Which book follows the four Gospels in the New Testament?", ["Romans","Acts","Hebrews","James"], 1],
+  ["How many commandments did God give Moses on the tablets?", ["7","10","12","613"], 1],
+  ["Who replaced Judas Iscariot among the twelve apostles?", ["Matthias","Barnabas","Silas","Timothy"], 0],
+  ["Which disciple is called 'the disciple whom Jesus loved'?", ["John","Peter","James","Andrew"], 0],
+  ["Who was the first woman?", ["Sarah","Eve","Rebekah","Hannah"], 1],
+  ["Who is the oldest person recorded in the Bible?", ["Noah","Methuselah","Adam","Enoch"], 1],
+];
+
+const TOTAL = 10, TIME = 15;
+const $ = id => document.getElementById(id);
+let qs, idx, score, timer, left, locked;
+
+const shuffle = a => { a = a.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const show = id => ["start","game","end"].forEach(s => $(s).classList.toggle("hidden", s!==id));
+const getBest = () => { try { return localStorage.getItem("bibleBest"); } catch { return null; } };
+const setBest = v => { try { localStorage.setItem("bibleBest", v); } catch {} };
+$("best").textContent = getBest() ?? "–";
+
+function start() {
+  qs = shuffle(QUESTIONS).slice(0, TOTAL).map(([q,o,a]) => {
+    const opts = shuffle(o.map((t,i)=>({t,c:i===a})));
+    return { q, opts };
+  });
+  idx = 0; score = 0;
+  show("game"); render();
+}
+
+function render() {
+  locked = false;
+  const cur = qs[idx];
+  $("progress").textContent = `Question ${idx+1} / ${TOTAL}`;
+  $("score").textContent = `Score: ${score}`;
+  $("question").textContent = cur.q;
+  $("nextBtn").classList.add("hidden");
+  const box = $("options"); box.innerHTML = "";
+  cur.opts.forEach((o,i) => {
+    const b = document.createElement("button");
+    b.className = "opt"; b.textContent = o.t;
+    b.onclick = () => answer(i);
+    box.appendChild(b);
+  });
+  left = TIME; tick(true);
+  clearInterval(timer);
+  timer = setInterval(() => { left--; tick(); if (left<=0) answer(-1); }, 1000);
+}
+
+function tick(reset) {
+  const bar = $("timerBar");
+  if (reset) { bar.style.transition="none"; bar.style.width="100%"; bar.offsetWidth; bar.style.transition=""; }
+  bar.style.width = (left/TIME*100) + "%";
+  bar.style.background = left<=5 ? "var(--bad)" : "";
+}
+
+function answer(i) {
+  if (locked) return;
+  locked = true; clearInterval(timer);
+  const cur = qs[idx];
+  [...$("options").children].forEach((b,n) => {
+    b.disabled = true;
+    if (cur.opts[n].c) b.classList.add("correct");
+    else if (n===i) b.classList.add("wrong");
+  });
+  if (i>=0 && cur.opts[i].c) score++;
+  $("score").textContent = `Score: ${score}`;
+  const nb = $("nextBtn");
+  nb.textContent = idx===TOTAL-1 ? "See Results" : "Next →";
+  nb.classList.remove("hidden");
+  nb.focus();
+}
+
+function next() {
+  if (++idx < TOTAL) return render();
+  const best = Number(getBest() ?? -1);
+  if (score > best) setBest(score);
+  $("best").textContent = Math.max(score, best);
+  $("finalScore").textContent = `${score} / ${TOTAL}`;
+  $("verdict").textContent = score>=9 ? "Outstanding! 🏆" : score>=7 ? "Great job! 🎉" : score>=5 ? "Not bad – keep going! 👍" : "Keep studying the Word! 📚";
+  show("end");
+}
+
+$("startBtn").onclick = start;
+$("againBtn").onclick = start;
+$("nextBtn").onclick = next;
+document.addEventListener("keydown", e => {
+  if ($("game").classList.contains("hidden")) return;
+  if (!locked && "1234".includes(e.key) && e.key) answer(Number(e.key)-1);
+});
+</script>
+</body>
+</html>
